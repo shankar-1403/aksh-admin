@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "call-tracking-app-cfd90"
+  },
+  "targets": {
+    "call-tracking-app-cfd90": {
+      "hosting": {
+        "admin": [
+          "call-tracking-dashboard"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
