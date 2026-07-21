@@ -16,7 +16,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false)
 
   if (user) {
-    return <Navigate to={from && from !== '/login' ? from : '/'} replace />
+    return <Navigate to={from && from !== '/' ? from : '/dashboard'} replace />
   }
 
   async function handleSubmit(e) {

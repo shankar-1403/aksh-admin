@@ -1,9 +1,19 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
-const ProtectedRoute = () => {
-  const user = localStorage.getItem("aksh_admin");
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
-  return user ? <Navigate to="/dashboard" /> : <Navigate to="/" replace />;
+  if (loading) {
+    return null;
+  }
+
+  if (!user) {
+    return <Navigate to="/" replace state={{ from: location }} />;
+  }
+
+  return children;
 };
 
 export default ProtectedRoute;
