@@ -4,26 +4,30 @@ import ModalCloseButton from '../../../pcred_crm/src/components/ModalCloseButton
 import { useSheets } from '../hooks/useSheets';
 import { usePagination } from '../../../pcred_crm/src/hooks/usePagination';
 import { db } from '../lib/firebase';
-import { push, ref, set } from 'firebase/database';
+import { push, ref, set, update } from 'firebase/database';
+import { extractSpreadsheetId } from '../utils/spreadsheetId';
 
 function Dashboard() {
   const {sheets} = useSheets();
   const [modalOpen,setModalOpen]=useState(false);
-  const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [activatingId, setActivatingId] = useState(null);
   const [form, setForm] = useState({heading:'',sheet_link_id:''});
 
   async function saveLead(e) {
     e.preventDefault()
-    if (!form.heading.trim() || !form.sheet_link_id.trim()) {
+    const sheetLinkId = extractSpreadsheetId(form.sheet_link_id);
+    if (!form.heading.trim() || !sheetLinkId) {
       alert("Please fill in all required fields.");
       return;
     }
     setSaving(true)
     try {
+      const isFirstSheet = sheets.length === 0;
       const payload = {
         heading: form.heading.trim(),
-        sheet_link_id: form.sheet_link_id.trim(),
+        sheet_link_id: sheetLinkId,
+        active: isFirstSheet,
         createdAt: Date.now(),
       }
 
@@ -36,6 +40,25 @@ function Dashboard() {
       setModalOpen(false)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function activateSheet(sheetId) {
+    if (!sheetId || activatingId) {
+      return;
+    }
+    setActivatingId(sheetId);
+    try {
+      const updates = {};
+      for (const sheet of sheets) {
+        updates[`sheets/${sheet.id}/active`] = sheet.id === sheetId;
+      }
+      await update(ref(db), updates);
+    } catch (error) {
+      console.error('Failed to activate sheet', error);
+      alert('Failed to activate sheet. Check Firebase permissions.');
+    } finally {
+      setActivatingId(null);
     }
   }
 
@@ -75,12 +98,34 @@ function Dashboard() {
             </thead>
             <tbody className="divide-y divide-slate-800">
               {sheets.map((data,index)=>(
-                <tr key={data._id} className="text-slate-300">
+                <tr key={data.id} className="text-slate-300">
                   <td className="px-4 py-1 text-slate-400 whitespace-nowrap">{index+1}</td>
-                  <td className="px-4 py-1 text-slate-400 whitespace-nowrap">{data.heading}</td>
+                  <td className="px-4 py-1 text-slate-400 whitespace-nowrap">
+                    {data.heading}
+                    {data.active ? (
+                      <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-400">
+                        Active
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-1 text-slate-400 whitespace-nowrap">{data.sheet_link_id}</td>
                   <td className="px-4 py-1 text-slate-400 whitespace-nowrap">
-                    <button className='bg-transparent border border-blue-500 rounded-lg text-xs px-2 py-1'>Activate</button>
+                    <button
+                      type="button"
+                      disabled={data.active || activatingId === data.id}
+                      onClick={() => activateSheet(data.id)}
+                      className={`rounded-lg border text-xs px-2 py-1 ${
+                        data.active
+                          ? 'border-emerald-500 text-emerald-400 cursor-default'
+                          : 'border-blue-500 text-blue-400 hover:bg-blue-500/10'
+                      } disabled:opacity-50`}
+                    >
+                      {data.active
+                        ? 'Active'
+                        : activatingId === data.id
+                          ? 'Activating…'
+                          : 'Activate'}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -116,7 +161,16 @@ function Dashboard() {
                 </div>
                 <div>
                   <label className="mb-4" htmlFor="sheet_link_id">Sheet Link ID</label>
-                  <input name='sheet_link_id' value={form.sheet_link_id} onChange={(e) => setForm({...form,sheet_link_id: e.target.value})} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30" />
+                  <input
+                    name='sheet_link_id'
+                    value={form.sheet_link_id}
+                    onChange={(e) => setForm({...form,sheet_link_id: e.target.value})}
+                    placeholder="Spreadsheet ID or full Google Sheets URL"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Paste the spreadsheet ID or the full sheet URL. Activate a sheet so call-tracker loads it.
+                  </p>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button
